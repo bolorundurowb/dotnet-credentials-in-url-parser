@@ -1,4 +1,5 @@
-﻿namespace CredentialsInUrlParser.Enums;
+﻿// ReSharper disable InconsistentNaming
+namespace CredentialsInUrlParser.Enums;
 
 public enum PostgresSSLMode
 {
