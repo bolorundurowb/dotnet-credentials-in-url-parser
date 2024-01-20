@@ -75,4 +75,4 @@ var (dbUrl, dbName)  = details.ToMongoConnectionSplit();
 
 ## Contributing
 
-Feel free to make requests and to open P=pull requests with fixes and updates.
+Feel free to make requests and to open pull requests with fixes and updates.
