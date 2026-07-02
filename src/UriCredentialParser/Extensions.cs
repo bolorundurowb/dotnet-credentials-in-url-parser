@@ -30,6 +30,42 @@ public static class Extensions
             $"User ID={connectionParameters.UserName};Password={connectionParameters.Password};Server={connectionParameters.HostName};Port={connectionParameters.Port};Database={connectionParameters.DatabasePath};Pooling={pooling.ToString().ToLowerInvariant()};SSL Mode={sslMode.ToString()};Trust Server Certificate={trustServerCertificate.ToString().ToLowerInvariant()}";
 
         /// <summary>
+        /// Converts the provided <paramref name="connectionParameters"/> into a MySQL connection string.
+        /// </summary>
+        /// <returns>
+        /// A formatted MySQL connection string suitable for MySqlConnector or MySql.Data.
+        /// </returns>
+        public string ToMySqlConnectionString() =>
+            $"Server={connectionParameters.HostName};Port={connectionParameters.Port};Database={connectionParameters.DatabasePath};User ID={connectionParameters.UserName};Password={connectionParameters.Password}";
+
+        /// <summary>
+        /// Formats a connection string using a user-provided template and placeholders from the current parameters.
+        /// </summary>
+        /// <param name="formatTemplate">
+        /// The template to apply. Supported placeholders are
+        /// <c>{Scheme}</c>, <c>{HostName}</c>, <c>{UserName}</c>, <c>{Password}</c>,
+        /// <c>{DatabasePath}</c>, <c>{Port}</c> and <c>{QueryParameters}</c>.
+        /// </param>
+        /// <returns>A formatted connection string generated from the supplied template.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="formatTemplate"/> is null.</exception>
+        public string ToConnectionString(string formatTemplate)
+        {
+            if (formatTemplate == null)
+                throw new ArgumentNullException(nameof(formatTemplate));
+
+            var queryParameters = connectionParameters.ComposeAdditionalQueryParameters() ?? string.Empty;
+
+            return formatTemplate
+                .Replace("{Scheme}", connectionParameters.Scheme ?? string.Empty)
+                .Replace("{HostName}", connectionParameters.HostName ?? string.Empty)
+                .Replace("{UserName}", connectionParameters.UserName ?? string.Empty)
+                .Replace("{Password}", connectionParameters.Password ?? string.Empty)
+                .Replace("{DatabasePath}", connectionParameters.DatabasePath ?? string.Empty)
+                .Replace("{Port}", connectionParameters.Port?.ToString() ?? string.Empty)
+                .Replace("{QueryParameters}", queryParameters);
+        }
+
+        /// <summary>
         /// Generates a MongoDB connection string and extracts the database name from the provided connection parameters.
         /// </summary>
         /// <returns>
