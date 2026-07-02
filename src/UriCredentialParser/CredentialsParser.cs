@@ -21,9 +21,60 @@ public static class CredentialsParser
         var auth = string.IsNullOrWhiteSpace(uri.UserInfo) ? ":" : uri.UserInfo;
         var authParts = auth.Split([':'], 2);
 
-        int? port = uri.Port > 0 ? uri.Port : null;
-        var userName = authParts[0];
-        var password = authParts[1];
+        int? port = null;
+        var authorityStart = url.IndexOf("://");
+        if (authorityStart >= 0)
+        {
+            authorityStart += 3;
+        }
+        else
+        {
+            authorityStart = url.IndexOf(':') + 1;
+        }
+
+        var pathStart = url.IndexOfAny(['/', '?', '#'], authorityStart);
+        if (pathStart < 0)
+        {
+            pathStart = url.Length;
+        }
+
+        var authoritySegment = url.Substring(authorityStart, pathStart - authorityStart);
+        var atIndex = authoritySegment.LastIndexOf('@');
+        var hostPortSegment = atIndex >= 0 ? authoritySegment.Substring(atIndex + 1) : authoritySegment;
+
+        string? portStr = null;
+        if (hostPortSegment.StartsWith("["))
+        {
+            var closingBracket = hostPortSegment.IndexOf(']');
+            if (closingBracket >= 0 && closingBracket < hostPortSegment.Length - 1 && hostPortSegment[closingBracket + 1] == ':')
+            {
+                portStr = hostPortSegment.Substring(closingBracket + 2);
+            }
+        }
+        else
+        {
+            var colonIndex = hostPortSegment.IndexOf(':');
+            if (colonIndex >= 0)
+            {
+                portStr = hostPortSegment.Substring(colonIndex + 1);
+            }
+        }
+
+        if (portStr != null)
+        {
+            if (!int.TryParse(portStr, out var parsedPort) || parsedPort < 0 || parsedPort > 65535)
+            {
+                throw new UriFormatException("Invalid port specified.");
+            }
+            port = parsedPort;
+        }
+        else if (uri.Port > 0)
+        {
+            port = uri.Port;
+        }
+
+        var userName = Uri.UnescapeDataString(authParts[0]);
+        var password = authParts.Length > 1 ? Uri.UnescapeDataString(authParts[1]) : string.Empty;
         var databaseName = uri.AbsolutePath.Trim('/');
 
         var query = uri.Query.TrimStart('?');
