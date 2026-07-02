@@ -27,6 +27,45 @@ public class ExtensionsTests
     }
 
     [Test]
+    public void ToMySqlConnectionString_WithFullParameters_ReturnsExpectedString()
+    {
+        var parameters = new ConnectionParameters("mysql", "mysql-server", "root", "p@ss", "inventory", 3306, null);
+
+        var result = parameters.ToMySqlConnectionString();
+
+        result.Must().Be("Server=mysql-server;Port=3306;Database=inventory;User ID=root;Password=p@ss");
+    }
+
+    [Test]
+    public void ToConnectionString_WithCustomTemplate_ReplacesAllSupportedTokens()
+    {
+        var parameters = new ConnectionParameters(
+            "oracle",
+            "db.example.net",
+            "appuser",
+            "secret",
+            "sales",
+            1521,
+            new Dictionary<string, string> { { "charset", "utf8" }, { "timeout", "20" } });
+
+        var template = "Host={HostName};Port={Port};Service={DatabasePath};User={UserName};Pwd={Password};Options={QueryParameters};Scheme={Scheme}";
+
+        var result = parameters.ToConnectionString(template);
+
+        result.Must().Be("Host=db.example.net;Port=1521;Service=sales;User=appuser;Pwd=secret;Options=charset=utf8&timeout=20;Scheme=oracle");
+    }
+
+    [Test]
+    public void ToConnectionString_WithNullTemplate_ThrowsArgumentNullException()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        Action act = () => parameters.ToConnectionString(null!);
+
+        act.Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public void ToMongoConnectionSplit_WithFullCredentialsAndPort_ReturnsCorrectTuple()
     {
         var parameters = new ConnectionParameters("mongodb", "mongo-cluster", "admin", "pass123", "appdb", 27017, new Dictionary<string, string> { { "retryWrites", "true" } });
