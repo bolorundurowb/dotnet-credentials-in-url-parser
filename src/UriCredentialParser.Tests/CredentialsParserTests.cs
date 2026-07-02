@@ -88,4 +88,43 @@ public class CredentialsParserTests
 
         act.Throws<UriFormatException>();
     }
+
+    [Test]
+    public void Parse_UrlEncodedCredentials_DecodesCorrectly()
+    {
+        var url = "postgres://u%20ser:p%40ssword@localhost:5432/testdb";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Must().NotBeNull();
+        result.UserName.Must().Be("u ser");
+        result.Password.Must().Be("p@ssword");
+    }
+
+    [Test]
+    public void Parse_ExplicitPortZero_ReturnsPortZero()
+    {
+        var url = "postgres://host:0/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Must().NotBeNull();
+        result.Port.Must().Be(0);
+    }
+
+    [Test]
+    public void Parse_InvalidNegativePort_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://host:-1/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_InvalidPortOutOfRange_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://host:65536/db");
+
+        act.Throws<UriFormatException>();
+    }
 }
