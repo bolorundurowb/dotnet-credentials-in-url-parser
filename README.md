@@ -1,6 +1,6 @@
 # Uri Credential Parser
 
-[![Build, Test & Coverage](https://github.com/bolorundurowb/UriCredentialParser/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/bolorundurowb/UriCredentialParser/actions/workflows/build-and-test.yml) [![codecov](https://codecov.io/gh/bolorundurowb/UriCredentialParser/graph/badge.svg?token=36BZ72JVU7)](https://codecov.io/gh/bolorundurowb/UriCredentialParser)
+[![Build, Test & Coverage](https://github.com/bolorundurowb/UriCredentialParser/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/bolorundurowb/UriCredentialParser/actions/workflows/build-and-test.yml) [![codecov](https://codecov.io/gh/bolorundurowb/UriCredentialParser/graph/badge.svg?token=36BZ72JVU7)](https://codecov.io/gh/bolorundurowb/UriCredentialParser) [![NuGet](https://img.shields.io/nuget/v/ciu-parser.svg)](https://www.nuget.org/packages/ciu-parser/)
 
 A lightweight .NET library for parsing **Credential-in-URL** connection strings (e.g., `scheme://user:password@host:port/database?options`) into structured objects, and converting them into **Npgsql** (PostgreSQL) or **MongoDB** connection strings.
 
