@@ -1,4 +1,4 @@
-using AwesomeAssertions;
+using OmniAssert;
 
 namespace UriCredentialParser.Tests;
 
@@ -12,7 +12,7 @@ public class ConnectionParametersTests
 
         var result = parameters.ComposeAdditionalQueryParameters();
 
-        result.Should().BeNull();
+        result.Must().BeNull();
     }
 
     [Test]
@@ -22,7 +22,7 @@ public class ConnectionParametersTests
 
         var result = parameters.ComposeAdditionalQueryParameters();
 
-        result.Should().BeEmpty();
+        result.Must().BeEmpty();
     }
 
     [Test]
@@ -33,7 +33,7 @@ public class ConnectionParametersTests
 
         var result = parameters.ComposeAdditionalQueryParameters();
 
-        result.Should().Be("key=value");
+        result.Must().Be("key=value");
     }
 
     [Test]
@@ -48,6 +48,6 @@ public class ConnectionParametersTests
 
         var result = parameters.ComposeAdditionalQueryParameters();
 
-        result.Should().Be("timeout=30&ssl=true");
+        result.Must().Be("timeout=30&ssl=true");
     }
 }

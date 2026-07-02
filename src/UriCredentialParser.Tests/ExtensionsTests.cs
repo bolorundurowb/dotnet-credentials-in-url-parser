@@ -1,4 +1,4 @@
-﻿using AwesomeAssertions;
+﻿using OmniAssert;
 using UriCredentialParser.Enums;
 
 namespace UriCredentialParser.Tests;
@@ -13,7 +13,7 @@ public class ExtensionsTests
 
         var result = parameters.ToNpgsqlConnectionString();
 
-        result.Should().Be("User ID=dbuser;Password=dbpass;Server=db-server;Port=5432;Database=maindb;Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true");
+        result.Must().Be("User ID=dbuser;Password=dbpass;Server=db-server;Port=5432;Database=maindb;Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true");
     }
 
     [Test]
@@ -23,7 +23,7 @@ public class ExtensionsTests
 
         var result = parameters.ToNpgsqlConnectionString(pooling: false, sslMode: PostgresSSLMode.Require, trustServerCertificate: false);
 
-        result.Should().Be("User ID=usr;Password=pwd;Server=127.0.0.1;Port=5433;Database=db;Pooling=false;SSL Mode=Require;Trust Server Certificate=false");
+        result.Must().Be("User ID=usr;Password=pwd;Server=127.0.0.1;Port=5433;Database=db;Pooling=false;SSL Mode=Require;Trust Server Certificate=false");
     }
 
     [Test]
@@ -33,8 +33,8 @@ public class ExtensionsTests
 
         var (url, dbName) = parameters.ToMongoConnectionSplit();
 
-        url.Should().Be("mongodb://admin:pass123@mongo-cluster:27017?retryWrites=true");
-        dbName.Should().Be("appdb");
+        url.Must().Be("mongodb://admin:pass123@mongo-cluster:27017?retryWrites=true");
+        dbName.Must().Be("appdb");
     }
 
     [Test]
@@ -44,7 +44,7 @@ public class ExtensionsTests
 
         var (url, dbName) = parameters.ToMongoConnectionSplit();
 
-        url.Should().Be("mongodb://localhost");
-        dbName.Should().Be("localdb");
+        url.Must().Be("mongodb://localhost");
+        dbName.Must().Be("localdb");
     }
 }

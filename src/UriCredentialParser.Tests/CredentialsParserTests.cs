@@ -1,4 +1,4 @@
-﻿using AwesomeAssertions;
+﻿using OmniAssert;
 
 namespace UriCredentialParser.Tests;
 
@@ -12,15 +12,15 @@ public class CredentialsParserTests
 
         var result = CredentialsParser.Parse(url);
 
-        result.Should().NotBeNull();
-        result.Scheme.Should().Be("postgres");
-        result.UserName.Should().Be("admin");
-        result.Password.Should().Be("secret");
-        result.HostName.Should().Be("localhost");
-        result.Port.Should().Be(5432);
-        result.DatabasePath.Should().Be("testdb");
-        result.AdditionalQueryParameters.Should().NotBeNull();
-        result.AdditionalQueryParameters!["timeout"].Should().Be("30");
+        result.Must().NotBeNull();
+        result.Scheme.Must().Be("postgres");
+        result.UserName.Must().Be("admin");
+        result.Password.Must().Be("secret");
+        result.HostName.Must().Be("localhost");
+        result.Port.Must().Be(5432);
+        result.DatabasePath.Must().Be("testdb");
+        result.AdditionalQueryParameters.Must().NotBeNull();
+        result.AdditionalQueryParameters!["timeout"].Must().Be("30");
     }
 
     [Test]
@@ -30,11 +30,11 @@ public class CredentialsParserTests
 
         var result = CredentialsParser.Parse(url);
 
-        result.AdditionalQueryParameters.Should().NotBeNull();
-        result.AdditionalQueryParameters.Should().HaveCount(3);
-        result.AdditionalQueryParameters!["timeout"].Should().Be("30");
-        result.AdditionalQueryParameters!["ssl"].Should().Be("true");
-        result.AdditionalQueryParameters!["mode"].Should().Be("readonly");
+        result.AdditionalQueryParameters.Must().NotBeNull();
+        result.AdditionalQueryParameters!.Count.Must().Be(3);
+        result.AdditionalQueryParameters!["timeout"].Must().Be("30");
+        result.AdditionalQueryParameters!["ssl"].Must().Be("true");
+        result.AdditionalQueryParameters!["mode"].Must().Be("readonly");
     }
 
     [Test]
@@ -44,9 +44,9 @@ public class CredentialsParserTests
 
         var result = CredentialsParser.Parse(url);
 
-        result.AdditionalQueryParameters.Should().NotBeNull();
-        result.AdditionalQueryParameters.Should().ContainKey("debug");
-        result.AdditionalQueryParameters!["debug"].Should().BeEmpty();
+        result.AdditionalQueryParameters.Must().NotBeNull();
+        result.AdditionalQueryParameters.Must().ContainKey("debug");
+        result.AdditionalQueryParameters!["debug"].Must().BeEmpty();
     }
 
     [Test]
@@ -56,10 +56,10 @@ public class CredentialsParserTests
 
         var result = CredentialsParser.Parse(url);
 
-        result.UserName.Should().BeEmpty();
-        result.Password.Should().BeEmpty();
-        result.HostName.Should().Be("localhost");
-        result.DatabasePath.Should().Be("mydb");
+        result.UserName.Must().BeEmpty();
+        result.Password.Must().BeEmpty();
+        result.HostName.Must().Be("localhost");
+        result.DatabasePath.Must().Be("mydb");
     }
 
     [Test]
@@ -67,8 +67,8 @@ public class CredentialsParserTests
     {
         Action act = () => CredentialsParser.Parse(null!);
 
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("url");
+        act.Throws<ArgumentNullException>()
+            .WithMessageContaining("url");
     }
 
     [TestCase("")]
@@ -77,8 +77,8 @@ public class CredentialsParserTests
     {
         Action act = () => CredentialsParser.Parse(invalidUrl);
 
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("url");
+        act.Throws<ArgumentException>()
+            .WithMessageContaining("url");
     }
 
     [Test]
@@ -86,6 +86,6 @@ public class CredentialsParserTests
     {
         Action act = () => CredentialsParser.Parse("not-a-valid-url");
 
-        act.Should().Throw<UriFormatException>();
+        act.Throws<UriFormatException>();
     }
 }
