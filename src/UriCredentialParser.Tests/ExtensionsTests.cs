@@ -37,6 +37,26 @@ public class ExtensionsTests
     }
 
     [Test]
+    public void ToNpgsqlConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters("postgres", null, null, null, null, null, null);
+
+        var result = parameters.ToNpgsqlConnectionString();
+
+        result.Must().Be("User ID=;Password=;Server=;Port=;Database=;Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true");
+    }
+
+    [Test]
+    public void ToMySqlConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters("mysql", null, null, null, null, null, null);
+
+        var result = parameters.ToMySqlConnectionString();
+
+        result.Must().Be("Server=;Port=;Database=;User ID=;Password=");
+    }
+
+    [Test]
     public void ToConnectionString_WithCustomTemplate_ReplacesAllSupportedTokens()
     {
         var parameters = new ConnectionParameters(
@@ -73,6 +93,24 @@ public class ExtensionsTests
         var (url, dbName) = parameters.ToMongoConnectionSplit();
 
         url.Must().Be("mongodb://admin:pass123@mongo-cluster:27017?retryWrites=true");
+        dbName.Must().Be("appdb");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithReservedCharacters_EncodesCredentialsAndQuery()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "mongo-cluster",
+            "ad:min",
+            "p@ss/word?",
+            "appdb",
+            27017,
+            new Dictionary<string, string> { { "retry writes", "true&w=majority" } });
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://ad%3Amin:p%40ss%2Fword%3F@mongo-cluster:27017?retry%20writes=true%26w%3Dmajority");
         dbName.Must().Be("appdb");
     }
 

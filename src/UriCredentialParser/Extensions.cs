@@ -27,7 +27,7 @@ public static class Extensions
         /// </returns>
         public string ToNpgsqlConnectionString(bool pooling = true, PostgresSSLMode sslMode = PostgresSSLMode.Prefer,
             bool trustServerCertificate = true) =>
-            $"User ID={connectionParameters.UserName};Password={connectionParameters.Password};Server={connectionParameters.HostName};Port={connectionParameters.Port};Database={connectionParameters.DatabasePath};Pooling={pooling.ToString().ToLowerInvariant()};SSL Mode={sslMode.ToString()};Trust Server Certificate={trustServerCertificate.ToString().ToLowerInvariant()}";
+            $"User ID={connectionParameters.UserName ?? string.Empty};Password={connectionParameters.Password ?? string.Empty};Server={connectionParameters.HostName ?? string.Empty};Port={connectionParameters.Port?.ToString() ?? string.Empty};Database={connectionParameters.DatabasePath ?? string.Empty};Pooling={pooling.ToString().ToLowerInvariant()};SSL Mode={sslMode.ToString()};Trust Server Certificate={trustServerCertificate.ToString().ToLowerInvariant()}";
 
         /// <summary>
         /// Converts the provided <paramref name="connectionParameters"/> into a MySQL connection string.
@@ -36,7 +36,7 @@ public static class Extensions
         /// A formatted MySQL connection string suitable for MySqlConnector or MySql.Data.
         /// </returns>
         public string ToMySqlConnectionString() =>
-            $"Server={connectionParameters.HostName};Port={connectionParameters.Port};Database={connectionParameters.DatabasePath};User ID={connectionParameters.UserName};Password={connectionParameters.Password}";
+            $"Server={connectionParameters.HostName ?? string.Empty};Port={connectionParameters.Port?.ToString() ?? string.Empty};Database={connectionParameters.DatabasePath ?? string.Empty};User ID={connectionParameters.UserName ?? string.Empty};Password={connectionParameters.Password ?? string.Empty}";
 
         /// <summary>
         /// Formats a connection string using a user-provided template and placeholders from the current parameters.
@@ -79,7 +79,8 @@ public static class Extensions
                 string.IsNullOrWhiteSpace(connectionParameters.Password))
                 userInfo = string.Empty;
             else
-                userInfo = $"{connectionParameters.UserName}:{connectionParameters.Password}@";
+                userInfo =
+                    $"{Uri.EscapeDataString(connectionParameters.UserName!)}:{Uri.EscapeDataString(connectionParameters.Password!)}@";
 
             var builder =
                 new StringBuilder($"{connectionParameters.Scheme}://{userInfo}{connectionParameters.HostName}");
@@ -91,7 +92,8 @@ public static class Extensions
             {
                 builder.Append('?');
                 builder.Append(string.Join("&",
-                    connectionParameters.AdditionalQueryParameters.Select(kvp => $"{kvp.Key}={kvp.Value}")));
+                    connectionParameters.AdditionalQueryParameters.Select(kvp =>
+                        $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}")));
             }
 
             return (builder.ToString(), connectionParameters.DatabasePath);
