@@ -27,7 +27,55 @@ public record ConnectionParameters(
     /// A string representing the combined query parameters if the AdditionalQueryParameters
     /// property contains any key-value pairs; otherwise, null if no additional parameters are present.
     /// </returns>
-    public string? ComposeAdditionalQueryParameters() => AdditionalQueryParameters == null
+    public string? ComposeAdditionalQueryParameters() => AdditionalQueryParameters is not { Count: > 0 }
         ? null
-        : string.Join("&", AdditionalQueryParameters.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+        : string.Join("&", AdditionalQueryParameters.Select(kvp =>
+            $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"));
+
+    /// <summary>
+    /// Reconstructs the URI from the current connection parameters.
+    /// </summary>
+    /// <returns>A URI string composed from the current record values.</returns>
+    public override string ToString() => BuildUri(maskPassword: false);
+
+    /// <summary>
+    /// Reconstructs the URI while masking the password value for safe logging.
+    /// </summary>
+    /// <returns>A URI string with password replaced by <c>***</c> when present.</returns>
+    public string ToSafeString() => BuildUri(maskPassword: true);
+
+    private string BuildUri(bool maskPassword)
+    {
+        var scheme = string.IsNullOrWhiteSpace(Scheme) ? "unknown" : Scheme;
+        var host = HostName ?? string.Empty;
+        var credentials = ComposeCredentials(maskPassword);
+        var port = Port.HasValue ? $":{Port.Value}" : string.Empty;
+        var databasePath = string.IsNullOrWhiteSpace(DatabasePath)
+            ? string.Empty
+            : $"/{Uri.EscapeDataString(DatabasePath)}";
+        var query = ComposeAdditionalQueryParameters();
+        var queryText = string.IsNullOrWhiteSpace(query) ? string.Empty : $"?{query}";
+
+        return $"{scheme}://{credentials}{host}{port}{databasePath}{queryText}";
+    }
+
+    private string ComposeCredentials(bool maskPassword)
+    {
+        var hasUserName = !string.IsNullOrWhiteSpace(UserName);
+        var hasPassword = !string.IsNullOrWhiteSpace(Password);
+
+        if (!hasUserName && !hasPassword)
+            return string.Empty;
+
+        var encodedUserName = hasUserName ? Uri.EscapeDataString(UserName!) : string.Empty;
+
+        if (!hasPassword)
+            return $"{encodedUserName}@";
+
+        var password = maskPassword
+            ? "***"
+            : Uri.EscapeDataString(Password!);
+
+        return $"{encodedUserName}:{password}@";
+    }
 }

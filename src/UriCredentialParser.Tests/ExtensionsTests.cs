@@ -27,6 +27,105 @@ public class ExtensionsTests
     }
 
     [Test]
+    public void ToMySqlConnectionString_WithFullParameters_ReturnsExpectedString()
+    {
+        var parameters = new ConnectionParameters("mysql", "mysql-server", "root", "p@ss", "inventory", 3306, null);
+
+        var result = parameters.ToMySqlConnectionString();
+
+        result.Must().Be("Server=mysql-server;Port=3306;Database=inventory;User ID=root;Password=p@ss");
+    }
+
+    [Test]
+    public void ToNpgsqlConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters("postgres", null, null, null, null, null, null);
+
+        var result = parameters.ToNpgsqlConnectionString();
+
+        result.Must().Be("User ID=;Password=;Server=;Port=;Database=;Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true");
+    }
+
+    [Test]
+    public void ToMySqlConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters("mysql", null, null, null, null, null, null);
+
+        var result = parameters.ToMySqlConnectionString();
+
+        result.Must().Be("Server=;Port=;Database=;User ID=;Password=");
+    }
+
+    [Test]
+    public void ToConnectionString_WithCustomTemplate_ReplacesAllSupportedTokens()
+    {
+        var parameters = new ConnectionParameters(
+            "oracle",
+            "db.example.net",
+            "appuser",
+            "secret",
+            "sales",
+            1521,
+            new Dictionary<string, string> { { "charset", "utf8" }, { "timeout", "20" } });
+
+        var template = "Host={HostName};Port={Port};Service={DatabasePath};User={UserName};Pwd={Password};Options={QueryParameters};Scheme={Scheme}";
+
+        var result = parameters.ToConnectionString(template);
+
+        result.Must().Be("Host=db.example.net;Port=1521;Service=sales;User=appuser;Pwd=secret;Options=charset=utf8&timeout=20;Scheme=oracle");
+    }
+
+    [Test]
+    public void ToConnectionString_WithNullQueryParameters_ReturnsEmptyQueryParameters()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Host={HostName};Options={QueryParameters}");
+
+        result.Must().Be("Host=localhost;Options=");
+    }
+
+    [Test]
+    public void ToConnectionString_WithTemplateMissingPlaceholders_KeepsLiteralTokens()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Host={HostName}");
+
+        result.Must().Be("Host=localhost");
+    }
+
+    [Test]
+    public void ToConnectionString_WithAlternativeSinglePlaceholder_CoversRemainingReplaceBranches()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Port={Port}");
+
+        result.Must().Be("Port=1");
+    }
+
+    [Test]
+    public void ToConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters(null, null, null, null, null, null, null);
+
+        var result = parameters.ToConnectionString("{Scheme}:{HostName}:{UserName}:{Password}:{DatabasePath}:{Port}:{QueryParameters}");
+
+        result.Must().Be("::::::");
+    }
+
+    [Test]
+    public void ToConnectionString_WithNullTemplate_ThrowsArgumentNullException()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        Action act = () => parameters.ToConnectionString(null!);
+
+        act.Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public void ToMongoConnectionSplit_WithFullCredentialsAndPort_ReturnsCorrectTuple()
     {
         var parameters = new ConnectionParameters("mongodb", "mongo-cluster", "admin", "pass123", "appdb", 27017, new Dictionary<string, string> { { "retryWrites", "true" } });
@@ -34,6 +133,24 @@ public class ExtensionsTests
         var (url, dbName) = parameters.ToMongoConnectionSplit();
 
         url.Must().Be("mongodb://admin:pass123@mongo-cluster:27017?retryWrites=true");
+        dbName.Must().Be("appdb");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithReservedCharacters_EncodesCredentialsAndQuery()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "mongo-cluster",
+            "ad:min",
+            "p@ss/word?",
+            "appdb",
+            27017,
+            new Dictionary<string, string> { { "retry writes", "true&w=majority" } });
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://ad%3Amin:p%40ss%2Fword%3F@mongo-cluster:27017?retry%20writes=true%26w%3Dmajority");
         dbName.Must().Be("appdb");
     }
 
