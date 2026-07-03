@@ -76,6 +76,46 @@ public class ExtensionsTests
     }
 
     [Test]
+    public void ToConnectionString_WithNullQueryParameters_ReturnsEmptyQueryParameters()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Host={HostName};Options={QueryParameters}");
+
+        result.Must().Be("Host=localhost;Options=");
+    }
+
+    [Test]
+    public void ToConnectionString_WithTemplateMissingPlaceholders_KeepsLiteralTokens()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Host={HostName}");
+
+        result.Must().Be("Host=localhost");
+    }
+
+    [Test]
+    public void ToConnectionString_WithAlternativeSinglePlaceholder_CoversRemainingReplaceBranches()
+    {
+        var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);
+
+        var result = parameters.ToConnectionString("Port={Port}");
+
+        result.Must().Be("Port=1");
+    }
+
+    [Test]
+    public void ToConnectionString_WithNullFields_UsesEmptyValues()
+    {
+        var parameters = new ConnectionParameters(null, null, null, null, null, null, null);
+
+        var result = parameters.ToConnectionString("{Scheme}:{HostName}:{UserName}:{Password}:{DatabasePath}:{Port}:{QueryParameters}");
+
+        result.Must().Be("::::::");
+    }
+
+    [Test]
     public void ToConnectionString_WithNullTemplate_ThrowsArgumentNullException()
     {
         var parameters = new ConnectionParameters("custom", "localhost", "u", "p", "db", 1, null);

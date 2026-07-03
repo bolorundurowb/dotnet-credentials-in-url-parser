@@ -99,4 +99,115 @@ public class ConnectionParametersTests
 
         result.Must().Be("mysql://service-user:***@db-server:3306/main");
     }
+
+    [Test]
+    public void ToString_WithNullScheme_UsesUnknownScheme()
+    {
+        var parameters = new ConnectionParameters(null, "host", "user", "pass", "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("unknown://user:pass@host:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithWhitespaceScheme_UsesUnknownScheme()
+    {
+        var parameters = new ConnectionParameters("   ", "host", "user", "pass", "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("unknown://user:pass@host:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithNullHostName_UsesEmptyHost()
+    {
+        var parameters = new ConnectionParameters("postgres", null, "user", "pass", "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user:pass@:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithNullPort_OmitsPort()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", "user", "pass", "db", null, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user:pass@host/db");
+    }
+
+    [Test]
+    public void ToString_WithNullDatabasePath_OmitsPath()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", "user", "pass", null, 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user:pass@host:5432");
+    }
+
+    [Test]
+    public void ToString_WithWhitespaceDatabasePath_OmitsPath()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", "user", "pass", "   ", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user:pass@host:5432");
+    }
+
+    [Test]
+    public void ToString_WithoutCredentials_OmitsCredentials()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", null, null, "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://host:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithUsernameOnly_IncludesUsernameAtSign()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", "user", null, "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user@host:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithPasswordOnly_IncludesPasswordWithEmptyUsername()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", null, "pass", "db", 5432, null);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://:pass@host:5432/db");
+    }
+
+    [Test]
+    public void ToSafeString_WithUsernameOnly_ReturnsUsernameWithoutMask()
+    {
+        var parameters = new ConnectionParameters("postgres", "host", "user", null, "db", 5432, null);
+
+        var result = parameters.ToSafeString();
+
+        result.Must().Be("postgres://user@host:5432/db");
+    }
+
+    [Test]
+    public void ToString_WithQueryParameters_ReconstructsQuery()
+    {
+        var queryParams = new Dictionary<string, string> { { "key", "value" } };
+        var parameters = new ConnectionParameters("postgres", "host", "user", "pass", "db", 5432, queryParams);
+
+        var result = parameters.ToString();
+
+        result.Must().Be("postgres://user:pass@host:5432/db?key=value");
+    }
 }

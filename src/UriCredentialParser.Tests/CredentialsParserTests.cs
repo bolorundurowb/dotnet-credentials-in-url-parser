@@ -127,4 +127,95 @@ public class CredentialsParserTests
 
         act.Throws<UriFormatException>();
     }
+
+    [Test]
+    public void Parse_CredentialsWithoutPassword_ReturnsEmptyPassword()
+    {
+        var url = "postgres://user@localhost/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.UserName.Must().Be("user");
+        result.Password.Must().BeEmpty();
+        result.HostName.Must().Be("localhost");
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_UriWithoutExplicitPortAndNoDefaultScheme_ReturnsNullPort()
+    {
+        var url = "myscheme://host/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("myscheme");
+        result.HostName.Must().Be("host");
+        result.Port.Must().BeNull();
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_AuthorityOnlyUri_ReturnsPortAndEmptyDatabasePath()
+    {
+        var url = "postgres://host:1234";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("postgres");
+        result.HostName.Must().Be("host");
+        result.Port.Must().Be(1234);
+        result.DatabasePath.Must().BeEmpty();
+    }
+
+    [Test]
+    public void Parse_Ipv6AddressWithExplicitPort_ReturnsPort()
+    {
+        var url = "postgres://[::1]:5432/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("postgres");
+        result.HostName.Must().Be("[::1]");
+        result.Port.Must().Be(5432);
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_Ipv6AddressWithoutPortAndNoDefaultScheme_ReturnsNullPort()
+    {
+        var url = "myscheme://[::1]/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("myscheme");
+        result.HostName.Must().Be("[::1]");
+        result.Port.Must().BeNull();
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_RelativeNotationUriWithoutSchemeSeparator_ParsesAsFileScheme()
+    {
+        var url = "//host/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("file");
+        result.HostName.Must().Be("host");
+        result.Port.Must().BeNull();
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_UriWithDefaultSchemePortAndNoExplicitPort_ReturnsDefaultPort()
+    {
+        var url = "http://host/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("http");
+        result.HostName.Must().Be("host");
+        result.Port.Must().Be(80);
+        result.DatabasePath.Must().Be("db");
+    }
 }
