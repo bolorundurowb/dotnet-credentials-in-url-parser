@@ -23,11 +23,24 @@ public static class Extensions
         /// Specifies whether to trust the server certificate. Defaults to true.
         /// </param>
         /// <returns>
-        /// A formatted Npgsql connection string based on the provided parameters.
+        /// A formatted Npgsql connection string based on the provided parameters. When the URI contained
+        /// multiple hosts (replica set), the hosts and ports are emitted as comma-separated lists, which
+        /// Npgsql supports for failover and load balancing.
         /// </returns>
         public string ToNpgsqlConnectionString(bool pooling = true, PostgresSSLMode sslMode = PostgresSSLMode.Prefer,
-            bool trustServerCertificate = true) =>
-            $"User ID={connectionParameters.UserName ?? string.Empty};Password={connectionParameters.Password ?? string.Empty};Server={connectionParameters.HostName ?? string.Empty};Port={connectionParameters.Port?.ToString() ?? string.Empty};Database={connectionParameters.DatabasePath ?? string.Empty};Pooling={pooling.ToString().ToLowerInvariant()};SSL Mode={sslMode.ToString()};Trust Server Certificate={trustServerCertificate.ToString().ToLowerInvariant()}";
+            bool trustServerCertificate = true)
+        {
+            var (hosts, ports) = connectionParameters.ResolveHostsAndPorts();
+
+            return $"User ID={connectionParameters.UserName ?? string.Empty};" +
+                   $"Password={connectionParameters.Password ?? string.Empty};" +
+                   $"Server={hosts};" +
+                   $"Port={ports};" +
+                   $"Database={connectionParameters.DatabasePath ?? string.Empty};" +
+                   $"Pooling={pooling.ToString().ToLowerInvariant()};" +
+                   $"SSL Mode={sslMode.ToString()};" +
+                   $"Trust Server Certificate={trustServerCertificate.ToString().ToLowerInvariant()}";
+        }
 
         /// <summary>
         /// Converts the provided <paramref name="connectionParameters"/> into a MySQL connection string.
@@ -35,8 +48,58 @@ public static class Extensions
         /// <returns>
         /// A formatted MySQL connection string suitable for MySqlConnector or MySql.Data.
         /// </returns>
-        public string ToMySqlConnectionString() =>
-            $"Server={connectionParameters.HostName ?? string.Empty};Port={connectionParameters.Port?.ToString() ?? string.Empty};Database={connectionParameters.DatabasePath ?? string.Empty};User ID={connectionParameters.UserName ?? string.Empty};Password={connectionParameters.Password ?? string.Empty}";
+        public string ToMySqlConnectionString()
+        {
+            var (hosts, _) = connectionParameters.ResolveHostsAndPorts();
+
+            return $"Server={hosts};" +
+                   $"Port={connectionParameters.Port?.ToString() ?? string.Empty};" +
+                   $"Database={connectionParameters.DatabasePath ?? string.Empty};" +
+                   $"User ID={connectionParameters.UserName ?? string.Empty};" +
+                   $"Password={connectionParameters.Password ?? string.Empty}";
+        }
+
+        /// <summary>
+        /// Converts the provided <paramref name="connectionParameters"/> into a connection string compatible
+        /// with StackExchange.Redis. Hosts are emitted as <c>host:port</c> pairs separated by commas; options
+        /// and the password (if any) are appended as <c>,name=value</c> tokens.
+        /// </summary>
+        /// <returns>A StackExchange.Redis-compatible connection string.</returns>
+        public string ToRedisConnectionString()
+        {
+            var builder = new StringBuilder();
+
+            if (connectionParameters.Hosts is { Count: > 0 })
+            {
+                builder.Append(string.Join(",",
+                    connectionParameters.Hosts.Select(endpoint =>
+                        endpoint.Port.HasValue
+                            ? $"{endpoint.HostName ?? string.Empty}:{endpoint.Port.Value}"
+                            : endpoint.HostName ?? string.Empty)));
+            }
+            else
+            {
+                builder.Append(connectionParameters.HostName ?? string.Empty);
+                if (connectionParameters.Port.HasValue)
+                    builder.Append($":{connectionParameters.Port.Value}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(connectionParameters.Password))
+                builder.Append($",password={connectionParameters.Password!}");
+
+            if (connectionParameters.AdditionalQueryParameters is { Count: > 0 })
+            {
+                foreach (var kvp in connectionParameters.AdditionalQueryParameters)
+                {
+                    if (string.Equals(kvp.Key, "password", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    builder.Append($",{kvp.Key}={kvp.Value}");
+                }
+            }
+
+            return builder.ToString();
+        }
 
         /// <summary>
         /// Formats a connection string using a user-provided template and placeholders from the current parameters.
@@ -75,18 +138,16 @@ public static class Extensions
         {
             string userInfo;
 
-            if (string.IsNullOrWhiteSpace(connectionParameters.UserName) &&
-                string.IsNullOrWhiteSpace(connectionParameters.Password))
-                userInfo = string.Empty;
+            if (!string.IsNullOrWhiteSpace(connectionParameters.UserName))
+                userInfo = $"{Uri.EscapeDataString(connectionParameters.UserName)}:" +
+                           $"{Uri.EscapeDataString(connectionParameters.Password ?? string.Empty)}@";
             else
-                userInfo =
-                    $"{Uri.EscapeDataString(connectionParameters.UserName!)}:{Uri.EscapeDataString(connectionParameters.Password!)}@";
+                userInfo = string.Empty;
 
             var builder =
-                new StringBuilder($"{connectionParameters.Scheme}://{userInfo}{connectionParameters.HostName}");
+                new StringBuilder($"{connectionParameters.Scheme}://{userInfo}");
 
-            if (connectionParameters.Port.HasValue)
-                builder.Append($":{connectionParameters.Port}");
+            AppendHostList(builder, connectionParameters);
 
             if (connectionParameters.AdditionalQueryParameters is { Count: > 0 })
             {
@@ -98,5 +159,37 @@ public static class Extensions
 
             return (builder.ToString(), connectionParameters.DatabasePath);
         }
+    }
+
+    internal static void AppendHostList(StringBuilder builder, ConnectionParameters connectionParameters)
+    {
+        if (connectionParameters.Hosts is { Count: > 0 })
+        {
+            builder.Append(string.Join(",",
+                connectionParameters.Hosts.Select(endpoint =>
+                    endpoint.Port.HasValue
+                        ? $"{endpoint.HostName ?? string.Empty}:{endpoint.Port.Value}"
+                        : endpoint.HostName ?? string.Empty)));
+            return;
+        }
+
+        builder.Append(connectionParameters.HostName ?? string.Empty);
+        if (connectionParameters.Port.HasValue)
+            builder.Append($":{connectionParameters.Port.Value}");
+    }
+
+    internal static (string Hosts, string Ports) ResolveHostsAndPorts(this ConnectionParameters connectionParameters)
+    {
+        if (connectionParameters.Hosts is { Count: > 0 })
+        {
+            var hosts = string.Join(",",
+                connectionParameters.Hosts.Select(endpoint => endpoint.HostName ?? string.Empty));
+            var ports = string.Join(",",
+                connectionParameters.Hosts.Select(endpoint => endpoint.Port?.ToString() ?? string.Empty));
+            return (hosts, ports);
+        }
+
+        return (connectionParameters.HostName ?? string.Empty,
+            connectionParameters.Port?.ToString() ?? string.Empty);
     }
 }
