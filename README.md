@@ -8,15 +8,20 @@ A lightweight .NET library for parsing **credential-in-URL** connection strings 
 
 - Parses absolute URIs into `ConnectionParameters`.
 - Extracts credentials, host, scheme, database path, port, and query options.
-- Decodes URL-encoded credentials when parsing.
+- Decodes URL-encoded credentials when parsing (e.g. `user%40name` → `user@name`).
 - Supports explicit port validation (`0` to `65535`).
-- Rebuilds URIs from parsed values (`ToString()`), including safe masked output (`ToMaskedUri()` / `ToSafeString()`).
+- Supports **multi-host / replica-set** URIs such as `mongodb://host1:27017,host2:27017/db`
+  via the `Hosts` collection, while keeping `HostName`/`Port` as the primary (first) endpoint.
+- Provides a non-throwing `TryParse` for user-facing input scenarios.
+- Rebuilds URIs from parsed values (`ToString()`), including safe masked output (`ToSafeString()`).
 - Exports to provider-specific or custom connection string formats:
-  - PostgreSQL/Npgsql (`ToNpgsqlConnectionString`)
+  - PostgreSQL/Npgsql (`ToNpgsqlConnectionString`) — emits comma-separated `Server`/`Port` for replica sets.
   - MySQL (`ToMySqlConnectionString`)
   - MongoDB split output (`ToMongoConnectionSplit`)
+  - Redis / StackExchange.Redis (`ToRedisConnectionString`)
   - Template-based custom format (`ToConnectionString`)
-- Lightweight package targeting `.NET Standard 2.0`.
+- Lightweight package targeting `.NET Standard 2.0`, with SourceLink-enabled deterministic builds for
+  better NuGet debugging.
 
 ## Installation
 
@@ -56,12 +61,41 @@ Console.WriteLine(parameters.DatabasePath); // testdb
 Console.WriteLine(parameters.Port);         // 5432
 ```
 
+### TryParse (non-throwing)
+
+For user-facing input where failures are expected, use `TryParse`:
+
+```csharp
+if (CredentialsParser.TryParse(userInput, out var parameters))
+{
+    Console.WriteLine(parameters!.HostName);
+}
+else
+{
+    Console.WriteLine("Invalid connection string.");
+}
+```
+
+### Multi-host / replica-set URIs
+
+`mongodb://host1:27017,host2:27018/db` returns a populated `Hosts` collection, while
+`HostName`/`Port` stay as the first (primary) endpoint for backward compatibility:
+
+```csharp
+var parameters = CredentialsParser.Parse("mongodb://host1:27017,host2:27018/appdb?replicaSet=myrs");
+
+Console.WriteLine(parameters.HostName);     // host1
+Console.WriteLine(parameters.Port);         // 27017
+Console.WriteLine(parameters.Hosts!.Count); // 2
+Console.WriteLine(parameters.Hosts![1].HostName); // host2
+Console.WriteLine(parameters.Hosts![1].Port);      // 27018
+```
+
 ### Reconstruct and safely log a URI
 
 ```csharp
 var original = parameters.ToString();      // includes password
-var masked = parameters.ToMaskedUri();     // password replaced with ***
-var safe = parameters.ToSafeString();      // alias of ToMaskedUri()
+var safe = parameters.ToSafeString();      // password replaced with ***
 ```
 
 ### PostgreSQL (Npgsql)
@@ -99,6 +133,18 @@ var (databaseUrl, databaseName) = mongo.ToMongoConnectionSplit();
 // databaseName: appdb
 ```
 
+### Redis
+
+```csharp
+using UriCredentialParser;
+
+var redis = CredentialsParser.Parse(
+    "redis://:s3cret@localhost:6379/0?ssl=true&abortConnect=false");
+
+var redisConnection = redis.ToRedisConnectionString();
+// localhost:6379,password=s3cret,ssl=true,abortConnect=false
+```
+
 ### Custom template-based connection string
 
 Supported placeholders in `ToConnectionString(template)`:
@@ -120,21 +166,23 @@ var custom = parameters.ToConnectionString(template);
 
 `CredentialsParser.Parse` expects a valid absolute URI.
 
-| Part of URL | Property | Description |
-|-------------|----------|-------------|
-| `scheme` | `Scheme` | e.g., `postgres`, `mongodb`, `redis` |
-| `user:pass` | `UserName` / `Password` | Extracted from UserInfo |
-| `host` | `HostName` | Server address |
-| `port` | `Port` | Numeric port or `null` if omitted |
-| `/path` | `DatabasePath` | The path segment (usually database name) |
-| `?query` | `AdditionalQueryParameters` | A `Dictionary<string, string>` of options |
+| Part of URL | Property                    | Description                                            |
+|-------------|-----------------------------|--------------------------------------------------------|
+| `scheme`    | `Scheme`                    | e.g., `postgres`, `mongodb`, `redis`                   |
+| `user:pass` | `UserName` / `Password`     | Extracted from UserInfo; URL-decoded                   |
+| `host:port` | `HostName` / `Port`         | Primary (first) endpoint; `Port` is `null` if omitted  |
+| `host,...`  | `Hosts`                     | Full `HostEndpoint` list for multi-host / replica-set URIs |
+| `/path`     | `DatabasePath`              | The path segment (usually database name)               |
+| `?query`    | `AdditionalQueryParameters` | A `Dictionary<string, string>` of options               |
 
 Additional behavior:
 
 - Missing credentials are returned as empty strings.
 - Query keys without values are included with an empty string value (for example `?debug`).
 - `Port` is nullable; explicit `0` is supported.
-- Invalid ports (negative or above `65535`) throw `UriFormatException`.
+- `HostName` and `Port` always reflect the first endpoint when multiple hosts are present.
+- Invalid ports (negative or above `65535`) throw `UriFormatException`; use `TryParse` to avoid
+  exceptions on untrusted input.
 
 ## ConnectionParameters Record
 
@@ -142,16 +190,19 @@ The `ConnectionParameters` record encapsulates the parsed data:
 
 - **`Scheme`**: The URI scheme.
 - **`HostName`**: The server host.
+- **`Hosts`**: Optional full host endpoint list (`IReadOnlyList<HostEndpoint>?`) for multi-host URIs.
 - **`UserName`** / **`Password`**: Credentials (defaults to empty strings if missing).
 - **`DatabasePath`**: The database name or path.
 - **`Port`**: The port number (`int?`).
 - **`AdditionalQueryParameters`**: A dictionary of all query parameters.
 
+For backward compatibility, **`HostName`** and **`Port`** always map to the first endpoint in **`Hosts`** when multiple hosts are present.
+
 Useful members:
 
 - **`ComposeAdditionalQueryParameters()`**: Joins query values into `k=v&k2=v2`.
 - **`ToString()`**: Reconstructs the URI.
-- **`ToMaskedUri()` / `ToSafeString()`**: Reconstructs the URI while masking password values.
+- **`ToSafeString()`**: Reconstructs the URI while masking password values.
 
 ## Relationship to other packages
 
