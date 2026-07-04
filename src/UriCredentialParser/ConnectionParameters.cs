@@ -20,6 +20,14 @@ public record ConnectionParameters(
     Dictionary<string, string>? AdditionalQueryParameters)
 {
     /// <summary>
+    /// Gets the full list of host endpoints parsed from a connection URI. This is populated
+    /// for multi-host / replica-set connection strings such as
+    /// <c>mongodb://host1:27017,host2:27017/db</c>. <see cref="HostName"/> and <see cref="Port"/>
+    /// always reflect the primary (first) endpoint for backward compatibility.
+    /// </summary>
+    public IReadOnlyList<HostEndpoint>? Hosts { get; init; }
+
+    /// <summary>
     /// Combines additional query parameters into a single query string by concatenating
     /// key-value pairs with an equals sign ('=') and separating them with an ampersand ('&').
     /// </summary>
@@ -47,16 +55,30 @@ public record ConnectionParameters(
     private string BuildUri(bool maskPassword)
     {
         var scheme = string.IsNullOrWhiteSpace(Scheme) ? "unknown" : Scheme;
-        var host = HostName ?? string.Empty;
+        var authority = ComposeAuthority();
         var credentials = ComposeCredentials(maskPassword);
-        var port = Port.HasValue ? $":{Port.Value}" : string.Empty;
         var databasePath = string.IsNullOrWhiteSpace(DatabasePath)
             ? string.Empty
             : $"/{Uri.EscapeDataString(DatabasePath)}";
         var query = ComposeAdditionalQueryParameters();
         var queryText = string.IsNullOrWhiteSpace(query) ? string.Empty : $"?{query}";
 
-        return $"{scheme}://{credentials}{host}{port}{databasePath}{queryText}";
+        return $"{scheme}://{credentials}{authority}{databasePath}{queryText}";
+    }
+
+    private string ComposeAuthority()
+    {
+        if (Hosts is { Count: > 0 })
+        {
+            return string.Join(",", Hosts.Select(endpoint =>
+                endpoint.Port.HasValue
+                    ? $"{endpoint.HostName ?? string.Empty}:{endpoint.Port.Value}"
+                    : endpoint.HostName ?? string.Empty));
+        }
+
+        var host = HostName ?? string.Empty;
+        var port = Port.HasValue ? $":{Port.Value}" : string.Empty;
+        return $"{host}{port}";
     }
 
     private string ComposeCredentials(bool maskPassword)

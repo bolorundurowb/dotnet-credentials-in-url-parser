@@ -164,4 +164,286 @@ public class ExtensionsTests
         url.Must().Be("mongodb://localhost");
         dbName.Must().Be("localdb");
     }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithUsernameButNullPassword_DoesNotThrow()
+    {
+        var parameters = new ConnectionParameters("mongodb", "host", "admin", null, "db", 27017, null);
+
+        var (url, _) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://admin:@host:27017");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithMultipleHosts_EmitsCommaSeparatedHostList()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "host1",
+            "admin",
+            "pass",
+            "appdb",
+            27017,
+            new Dictionary<string, string> { { "replicaSet", "myset" } })
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", 27017),
+                new("host2", 27018)
+            }
+        };
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://admin:pass@host1:27017,host2:27018?replicaSet=myset");
+        dbName.Must().Be("appdb");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithMultipleHostsWithoutPorts_OmitsPortSegments()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "host1",
+            null,
+            null,
+            "appdb",
+            null,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", null),
+                new("host2", null)
+            }
+        };
+
+        var (url, _) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://host1,host2");
+    }
+
+    [Test]
+    public void ToNpgsqlConnectionString_WithMultipleHosts_EmitsCommaSeparatedServersAndPorts()
+    {
+        var parameters = new ConnectionParameters(
+            "postgres",
+            "host1",
+            "user",
+            "pass",
+            "db",
+            5432,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", 5432),
+                new("host2", 5433)
+            }
+        };
+
+        var result = parameters.ToNpgsqlConnectionString();
+
+        result.Must().Be("User ID=user;Password=pass;Server=host1,host2;Port=5432,5433;Database=db;Pooling=true;SSL Mode=Prefer;Trust Server Certificate=true");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithHostNameAndPort_ReturnsStackExchangeFormat()
+    {
+        var parameters = new ConnectionParameters("redis", "localhost", null, "p@ss", null, 6379, null);
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost:6379,password=p@ss");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithoutPort_OmitsPortSegment()
+    {
+        var parameters = new ConnectionParameters("redis", "localhost", null, null, null, null,
+            new Dictionary<string, string> { { "ssl", "true" } });
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost,ssl=true");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithMultipleHosts_EmitsCommaSeparatedHosts()
+    {
+        var parameters = new ConnectionParameters(
+            "redis",
+            "redis1",
+            null,
+            "topsecret",
+            null,
+            6379,
+            new Dictionary<string, string> { { "ssl", "true" }, { "name", "mycluster" } })
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("redis1", 6379),
+                new("redis2", 6380)
+            }
+        };
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("redis1:6379,redis2:6380,password=topsecret,ssl=true,name=mycluster");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_SkipsPasswordQueryParameterToAvoidDuplication()
+    {
+        var parameters = new ConnectionParameters(
+            "redis",
+            "localhost",
+            null,
+            "explicit",
+            null,
+            6379,
+            new Dictionary<string, string> { { "password", "from-query" } });
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost:6379,password=explicit");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithDebugQueryParameter_EmitsEmptyValue()
+    {
+        var parameters = CredentialsParser.Parse("redis://localhost?debug");
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost,debug=");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithDecodedQueryParameters_DoesNotDoubleEncode()
+    {
+        var parameters = CredentialsParser.Parse("redis://localhost?retry%20writes=true%26safe");
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost,retry writes=true&safe");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithNullHostNameAndNullPort_UsesEmptyHost()
+    {
+        var parameters = new ConnectionParameters("mongodb", null, "user", "pass", "db", null, null);
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithNullHostNameAndPort_UsesEmptyHostWithPort()
+    {
+        var parameters = new ConnectionParameters("mongodb", null, "user", "pass", "db", 27017, null);
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@:27017");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithHostsListAndNullHostNameEndpoint_HandlesGracefully()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "host1",
+            "user",
+            "pass",
+            "db",
+            27017,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 27017),
+                new("host2", null)
+            }
+        };
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@:27017,host2");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithNullHostNameAndPort_UsesEmptyHostWithPort()
+    {
+        var parameters = new ConnectionParameters("redis", null, null, "pass", null, 6379, null);
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be(":6379,password=pass");
+    }
+
+    [Test]
+    public void ToNpgsqlConnectionString_WithHostsContainingNullHostName_EmitsEmptyHost()
+    {
+        var parameters = new ConnectionParameters(
+            "postgres",
+            "host1",
+            "user",
+            "pass",
+            "db",
+            5432,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 5432),
+                new("host2", 5433)
+            }
+        };
+
+        var result = parameters.ToNpgsqlConnectionString();
+
+        result.Must().Contain("Server=,host2");
+        result.Must().Contain("Port=5432,5433");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithEmptyAdditionalQueryParameters_NoTrailingComma()
+    {
+        var parameters = new ConnectionParameters("redis", "localhost", null, "pass", null, 6379,
+            new Dictionary<string, string>());
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost:6379,password=pass");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithHostsContainingNullHostName_EmitsEmptyHost()
+    {
+        var parameters = new ConnectionParameters(
+            "redis",
+            "redis1",
+            null,
+            "secret",
+            null,
+            6379,
+            new Dictionary<string, string> { { "ssl", "true" } })
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 6379),
+                new("redis2", 6380)
+            }
+        };
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Contain(":6379,redis2:6380");
+    }
 }

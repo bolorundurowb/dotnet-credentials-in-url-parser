@@ -210,4 +210,57 @@ public class ConnectionParametersTests
 
         result.Must().Be("postgres://user:pass@host:5432/db?key=value");
     }
+
+    [Test]
+    public void ToString_WithHostsList_ReconstructsMultiHostUri()
+    {
+        var queryParams = new Dictionary<string, string> { { "replicaSet", "myset" } };
+        var parameters = new ConnectionParameters("mongodb", "host1", "user", "pass", "appdb", 27017, queryParams)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", 27017),
+                new("host2", 27018)
+            }
+        };
+
+        var result = parameters.ToString();
+
+        result.Must().Be("mongodb://user:pass@host1:27017,host2:27018/appdb?replicaSet=myset");
+    }
+
+    [Test]
+    public void ToSafeString_WithHostsList_MasksPassword()
+    {
+        var queryParams = new Dictionary<string, string> { { "replicaSet", "myset" } };
+        var parameters = new ConnectionParameters("mongodb", "host1", "user", "secret", "appdb", 27017, queryParams)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", 27017),
+                new("host2", 27018)
+            }
+        };
+
+        var result = parameters.ToSafeString();
+
+        result.Must().Be("mongodb://user:***@host1:27017,host2:27018/appdb?replicaSet=myset");
+    }
+
+    [Test]
+    public void ToString_WithHostsListWithoutPorts_OmitsPortSegments()
+    {
+        var parameters = new ConnectionParameters("mongodb", "host1", "user", "pass", "appdb", null, null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new("host1", null),
+                new("host2", null)
+            }
+        };
+
+        var result = parameters.ToString();
+
+        result.Must().Be("mongodb://user:pass@host1,host2/appdb");
+    }
 }
