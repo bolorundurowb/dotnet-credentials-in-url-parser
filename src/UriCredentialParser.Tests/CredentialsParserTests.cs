@@ -409,4 +409,110 @@ public class CredentialsParserTests
 
         result.ToString().Must().Be(url);
     }
+
+    [Test]
+    public void Parse_NonNumericPort_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://host:abc/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_PlainHostWithEmptyPort_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://host:/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_MultiHostWithWhitespaceSegment_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("mongodb://host1, ,host2/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_Ipv6WithoutClosingBracket_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://[::1:5432/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_Ipv6WithInvalidPortSuffix_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("postgres://[::1]abc/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_WhitespaceScheme_ThrowsUriFormatException()
+    {
+        Action act = () => CredentialsParser.Parse("   ://host/db");
+
+        act.Throws<UriFormatException>();
+    }
+
+    [Test]
+    public void Parse_EmptyAuthority_ReturnsNullHostAndPort()
+    {
+        var result = CredentialsParser.Parse("postgres:///db");
+
+        result.Scheme.Must().Be("postgres");
+        result.HostName.Must().BeNull();
+        result.Port.Must().BeNull();
+        result.DatabasePath.Must().Be("db");
+    }
+
+    [Test]
+    public void Parse_QueryWithFragment_IgnoresFragment()
+    {
+        var url = "postgres://host/db?key=value#section";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.AdditionalQueryParameters.Must().NotBeNull();
+        result.AdditionalQueryParameters!["key"].Must().Be("value");
+    }
+
+    [Test]
+    public void Parse_DatabasePathWithoutLeadingSlash_HandlesCorrectly()
+    {
+        var url = "postgres://host:5432";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.Scheme.Must().Be("postgres");
+        result.HostName.Must().Be("host");
+        result.Port.Must().Be(5432);
+        result.DatabasePath.Must().BeEmpty();
+    }
+
+    [Test]
+    public void Parse_DatabasePathWithTrailingSlash_TrimsCorrectly()
+    {
+        var url = "postgres://host/db/path/";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.DatabasePath.Must().Be("db/path");
+    }
+
+    [Test]
+    public void Parse_UrlWithColonAndNumberInPassword_NotConfusedWithPort()
+    {
+        var url = "postgres://user:5432@localhost/db";
+
+        var result = CredentialsParser.Parse(url);
+
+        result.UserName.Must().Be("user");
+        result.Password.Must().Be("5432");
+        result.HostName.Must().Be("localhost");
+        result.Port.Must().BeNull();
+    }
 }

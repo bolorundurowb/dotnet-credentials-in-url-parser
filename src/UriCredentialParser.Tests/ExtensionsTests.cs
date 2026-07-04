@@ -329,4 +329,121 @@ public class ExtensionsTests
 
         result.Must().Be("localhost,retry writes=true&safe");
     }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithNullHostNameAndNullPort_UsesEmptyHost()
+    {
+        var parameters = new ConnectionParameters("mongodb", null, "user", "pass", "db", null, null);
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithNullHostNameAndPort_UsesEmptyHostWithPort()
+    {
+        var parameters = new ConnectionParameters("mongodb", null, "user", "pass", "db", 27017, null);
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@:27017");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToMongoConnectionSplit_WithHostsListAndNullHostNameEndpoint_HandlesGracefully()
+    {
+        var parameters = new ConnectionParameters(
+            "mongodb",
+            "host1",
+            "user",
+            "pass",
+            "db",
+            27017,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 27017),
+                new("host2", null)
+            }
+        };
+
+        var (url, dbName) = parameters.ToMongoConnectionSplit();
+
+        url.Must().Be("mongodb://user:pass@:27017,host2");
+        dbName.Must().Be("db");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithNullHostNameAndPort_UsesEmptyHostWithPort()
+    {
+        var parameters = new ConnectionParameters("redis", null, null, "pass", null, 6379, null);
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be(":6379,password=pass");
+    }
+
+    [Test]
+    public void ToNpgsqlConnectionString_WithHostsContainingNullHostName_EmitsEmptyHost()
+    {
+        var parameters = new ConnectionParameters(
+            "postgres",
+            "host1",
+            "user",
+            "pass",
+            "db",
+            5432,
+            null)
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 5432),
+                new("host2", 5433)
+            }
+        };
+
+        var result = parameters.ToNpgsqlConnectionString();
+
+        result.Must().Contain("Server=,host2");
+        result.Must().Contain("Port=5432,5433");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithEmptyAdditionalQueryParameters_NoTrailingComma()
+    {
+        var parameters = new ConnectionParameters("redis", "localhost", null, "pass", null, 6379,
+            new Dictionary<string, string>());
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Be("localhost:6379,password=pass");
+    }
+
+    [Test]
+    public void ToRedisConnectionString_WithHostsContainingNullHostName_EmitsEmptyHost()
+    {
+        var parameters = new ConnectionParameters(
+            "redis",
+            "redis1",
+            null,
+            "secret",
+            null,
+            6379,
+            new Dictionary<string, string> { { "ssl", "true" } })
+        {
+            Hosts = new List<HostEndpoint>
+            {
+                new(null, 6379),
+                new("redis2", 6380)
+            }
+        };
+
+        var result = parameters.ToRedisConnectionString();
+
+        result.Must().Contain(":6379,redis2:6380");
+    }
 }
